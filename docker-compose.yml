@@ -1,0 +1,115 @@
+version: '3.9'
+services:
+  backend-auth:
+    build: "${PATH_TO_AUTH_REPO}"
+    container_name: goloniel-auth-backend
+    ports:
+      - "8000:8000"
+    working_dir: /app
+    volumes:
+      - "${PATH_TO_AUTH_REPO}/:/app"
+      - "${PATH_TO_KEYS}/api_key.key:/app/api_key.key"
+      - "${PATH_TO_KEYS}/public_key.pem:/app/public_key.pem"
+      - "${PATH_TO_KEYS}/private_key.pem:/app/private_key.pem"
+    depends_on:
+      postgres-auth:
+        condition: service_healthy
+        # restart: true
+      rabbitmq:
+        condition: service_healthy
+        # restart: true
+
+  postgres-auth:
+    image: postgres:latest
+    container_name: goloniel-postgresql-auth
+    volumes:
+      - "${PATH_TO_AUTH_REPO}/sql.sql:/docker-entrypoint-initdb.d/init.sql"
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: auth
+      POSTGRES_USER: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      # test: ["CMD-SHELL", "pg_isready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  backend-social:
+    build: "${PATH_TO_SOCIAL_REPO}"
+    container_name: goloniel-social-backend
+    ports:
+      - "8001:8000"
+    working_dir: /app
+    volumes:
+      - "${PATH_TO_SOCIAL_REPO}/:/app"
+      - "${PATH_TO_KEYS}/api_key.key:/app/api_key.key"
+      - "${PATH_TO_KEYS}/public_key.pem:/app/public_key.pem"
+    depends_on:
+      postgres-social:
+        condition: service_healthy
+        # # restart: true
+      rabbitmq:
+        condition: service_healthy
+        # # restart: true
+
+  postgres-social:
+    image: postgres:latest
+    container_name: goloniel-postgresql-social
+    volumes:
+      - "${PATH_TO_SOCIAL_REPO}/sql.sql:/docker-entrypoint-initdb.d/init.sql"
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: social
+      POSTGRES_USER: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      # test: ["CMD-SHELL", "pg_isready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  discord-bot:
+    build: "${PATH_TO_BOT_REPO}"
+    container_name: goloniel-discord-bot
+    working_dir: /app
+    volumes:
+      - "${PATH_TO_BOT_REPO}/:/app"
+      - "${PATH_TO_KEYS}/api_key.key:/app/api_key.key"
+      - "${PATH_TO_KEYS}/public_key.pem:/app/public_key.pem"
+      - "${PATH_TO_KEYS}/bot_refresh_token.key:/app/refresh_token.key"
+    depends_on:
+      postgres-discord-bot:
+        condition: service_healthy
+        # restart: true
+      rabbitmq:
+        condition: service_healthy
+        # restart: true
+
+  postgres-discord-bot:
+    image: postgres:latest
+    container_name: goloniel-postgresql-discord-bot
+    # volumes:
+      # - "${PATH_TO_BOT_REPO}/sql.sql:/docker-entrypoint-initdb.d/init.sql"
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: bot
+      POSTGRES_USER: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: goloniel-rabbitmq
+    ports:
+      - 15672:15672
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 30s
+      retries: 3
